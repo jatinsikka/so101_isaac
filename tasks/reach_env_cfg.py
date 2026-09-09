@@ -87,7 +87,7 @@ class ActionsCfg:
 
     # TODO: scale, clip
     arm_action: ActionTerm = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot", joint_names=[".*"], scale=0.1, clip={".*": (-1.0, 1.0)}
+        asset_name="robot", joint_names=[".*"], scale=0.25, clip={".*": (-1.0, 1.0)}
     )
     gripper_action: ActionTerm | None = None
 
@@ -137,7 +137,7 @@ class RewardsCfg:
     # task terms
     end_effector_position_tracking = RewTerm(
         func=task_mdp.position_command_error,
-        weight=1.0,
+        weight=1.6,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="gripper_link"),
             "command_name": "ee_pose",
@@ -146,7 +146,7 @@ class RewardsCfg:
     )
     end_effector_position_tracking_fine_grained = RewTerm(
         func=task_mdp.position_command_error,
-        weight=1.0,
+        weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="gripper_link"),
             "command_name": "ee_pose",
@@ -155,7 +155,7 @@ class RewardsCfg:
     )
     end_effector_orientation_tracking = RewTerm(
         func=task_mdp.orientation_command_error,
-        weight=1.0,
+        weight=1.6,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="gripper_link"),
             "command_name": "ee_pose",
@@ -166,19 +166,19 @@ class RewardsCfg:
     # penalty terms
     action_rate = RewTerm(
         func=task_mdp.action_rate_l2,
-        weight=-1.0
+        weight=-0.5
     )
     joint_vel = RewTerm(
         func=task_mdp.joint_vel_l2,
-        weight=-1.0,
+        weight=-0.05,
     )
     joint_acc = RewTerm(
         func=task_mdp.joint_acc_l2,
-        weight=-0.001,
+        weight=-0.0075,
     )
     joint_torque = RewTerm(
         func=task_mdp.joint_torques_l2,
-        weight=-1.0,
+        weight=-0.5,
     )
 
 
