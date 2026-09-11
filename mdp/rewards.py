@@ -22,8 +22,8 @@ def position_command_error(
     command = env.command_manager.get_command(command_name)
     # obtain the desired and current positions
     des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w, asset.data.root_quat_w, des_pos_b)
-    curr_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids[0]]  # type: ignore
+    des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w.torch, asset.data.root_quat_w.torch, des_pos_b)
+    curr_pos_w = asset.data.body_pos_w.torch[:, asset_cfg.body_ids[0]]  # type: ignore
     error = curr_pos_w - des_pos_w
     return torch.exp(-error.pow(2).sum(dim=1) / std**2)
 
@@ -38,8 +38,8 @@ def orientation_command_error(
     command = env.command_manager.get_command(command_name)
     # obtain the desired and current orientations
     des_quat_b = command[:, 3:7]
-    des_quat_w = quat_mul(asset.data.root_quat_w, des_quat_b)
-    curr_quat_w = asset.data.body_quat_w[:, asset_cfg.body_ids[0]]  # type: ignore
+    des_quat_w = quat_mul(asset.data.root_quat_w.torch, des_quat_b)
+    curr_quat_w = asset.data.body_quat_w.torch[:, asset_cfg.body_ids[0]]  # type: ignore
     error = quat_error_magnitude(curr_quat_w, des_quat_w)
     return torch.exp(-error.pow(2) / std**2)
 

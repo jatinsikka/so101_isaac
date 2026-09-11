@@ -27,7 +27,10 @@ cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
-args_cli.headless = True
+# Force headless only for the Ray/remote-server workflow. Local runs can show the
+# Kit GUI, which additionally needs `--viz kit` on this Isaac Lab version.
+if args_cli.server:
+    args_cli.headless = True
 args_cli.video = True
 if args_cli.video and args_cli.server:
     args_cli.log_videos_async = True
@@ -113,7 +116,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # specify directory for logging experiments
-    log_root_path = os.path.abspath(os.path.join("logs", agent_cfg.experiment_name))
+    # Resolve relative to the repo root, not the cwd, so train.py and play.py agree on the
+    # log root. Previously this was cwd-relative: run from scripts/ (as the README says) it
+    # wrote to scripts/logs/, while play.py looks in <repo>/logs/ and never found the run.
+    _ext_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    log_root_path = os.path.abspath(os.path.join(_ext_path, "logs", agent_cfg.experiment_name))
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs: {time-stamp}_{run_name}
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -198,5 +205,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 if __name__ == "__main__":
     # run the main function
     main()
+    # Finalise W&B before tearing down Isaac Sim. simulation_app.close() hard-exits the
+    # process, which bypasses wandb's atexit hook, so without this the run never gets a
+    # finish record and the server marks it "crashed" once heartbeats stop -- even though
+    # training completed. Guarded so a non-wandb run is unaffected.
+    try:
+        import wandb
+
+        if wandb.run is not None:
+            wandb.finish()
+    except Exception:
+        pass
     # close sim app
     simulation_app.close()

@@ -15,7 +15,6 @@ SO101_CFG = ArticulationCfg(
         asset_path=f"{TASK_DIR}/assets/so101.urdf",
         fix_base=True,
         merge_fixed_joints=True,
-        make_instanceable=True,
         link_density=1.0e-8,
         activate_contact_sensors=True,
         joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
@@ -23,7 +22,7 @@ SO101_CFG = ArticulationCfg(
                     stiffness=None, damping=None
                 )
         ),
-        collider_type="convex_hull",
+        collision_type="Convex Hull",
         self_collision=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

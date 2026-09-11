@@ -13,9 +13,9 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.manipulation.reach.mdp as mdp
 import isaaclab_tasks.manager_based.so101_isaac.mdp as task_mdp
@@ -43,7 +43,11 @@ class SceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
         ),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.70711, 0.0, 0.0, 0.70711)),
+        # Orientation matters: this asset needs the Y-up -> Z-up flip (w=0) used by
+        # Isaac Lab 3.0's own reach task. With the old (0.70711,0,0,0.70711) spin the
+        # table's collision top lands at z=+0.796 and is offset +0.5 in y, so the robot
+        # at z=0.01 ends up buried inside the table. This puts the top at z~0.
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, 0.0), rot=(0.0, 0.0, 0.707, 0.707)),
     )
 
     # robots
