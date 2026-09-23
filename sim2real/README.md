@@ -74,3 +74,29 @@ Exported policies (`policy.onnx` + its `policy.onnx.data` weights) and run logs 
   real servos top out near 0.92 rad/s, so every step pushes against the 0.12 rad cap on
   how far the command may lead the arm. The fix is a retrain with realistic joint speed
   and action scale plus start-pose randomization, not a deploy-side change.
+
+## Retrain: match the sim actuator to the real servos (2026-09-23)
+
+What changed, and why, after the first policy oscillated on hardware:
+
+| Change | Before | After | Why |
+|---|---|---|---|
+| `assets/so101.py` `velocity_limit_sim` | 10.0 rad/s | 0.92 rad/s | Real servos run at `GOAL_SPEED` 600 ticks/s = 0.92 rad/s. A ~10x faster sim arm taught the policy aggressive commands that overshoot on the slow real arm. |
+| `ActionsCfg` `clip` | ±1.0 rad | ±0.25 rad | `clip` bounds the *scaled* offset. ±1.0 never engaged, so sim allowed offsets deploy never sends. ±scale matches deploy's `clip(action, -1, 1)`. |
+| `ActionsCfg` `scale` | 0.25 | 0.25 (unchanged) | Shrinking it would break gravity holding: relative targets give torque = stiffness × offset, and 17.8 × 0.02 ≈ 0.36 Nm can't hold up ~0.7 Nm of arm. Speed is limited by the velocity cap instead. |
+| Reset event | `reset_joints_by_scale` (0.5, 1.5) | `reset_joints_by_offset` (−1, 1) rad | Scaling an all-zero default pose always gave q=0, so the policy had never started anywhere else. |
+| New `randomize_actuator_gains` | — | stiffness × U(0.7, 1.3) per env | Real servos are stiffer and vary; don't overfit one gain. |
+| `deploy_policy.py` target rule | integrated setpoint, 0.02 rad/step clamp | `measured + clip(0.25·a)`, servo speed cap does the limiting | Same rule as training's `RelativeJointPositionAction`. |
+
+A policy trained *before* this change is out of spec for the new deploy rule, and a new
+policy is out of spec for the old one: re-export and deploy them together.
+
+Training command (AWS box, from `~/IsaacLab`). Videos record every 250 iterations for one
+full 12 s episode (600 steps) and upload to wandb alongside the curves:
+
+    ./isaaclab.sh -p ~/projects/so101_isaac/scripts/train.py --task reach-v0 --headless \
+        --num_envs 8192 --max_iterations 3000 --run_name actuator_match \
+        --video --video_length 600 --video_interval 6000
+
+Before retraining, `scripts/sim_check_real_limits.py` can confirm the diagnosis on the *old*
+policy: `--mode sim` should settle, `--mode real` should oscillate like the hardware did.

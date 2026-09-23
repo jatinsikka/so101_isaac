@@ -46,7 +46,10 @@ SO101_CFG = ArticulationCfg(
         "sts3215": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
             effort_limit_sim=10.0,  # ".*_limit_sim" for Implicit, ".*_limit" for Ideal PD
-            velocity_limit_sim=10.0,  # ".*_limit_sim" for Implicit, ".*_limit" for Ideal PD
+            # Real STS3215s are commanded with GOAL_SPEED=600 ticks/s (sim2real/real_robot_interface.py),
+            # i.e. 600 / 651.9 ticks/rad = 0.92 rad/s. At the old 10 rad/s the sim arm was ~10x faster
+            # than the real one and the policy oscillated on hardware. Keep these two in sync.
+            velocity_limit_sim=0.92,  # ".*_limit_sim" for Implicit, ".*_limit" for Ideal PD
             stiffness=17.8,
             damping=0.0,
             armature=0.028,
