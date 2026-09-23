@@ -210,3 +210,7 @@ __marimo__/
 **/logs/
 **/outputs/
 **/wandb/
+
+# exported policies (weights live in the .onnx.data sidecar); retrains replace them
+sim2real/policy.onnx
+sim2real/policy.onnx.data

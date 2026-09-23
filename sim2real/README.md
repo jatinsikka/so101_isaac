@@ -50,7 +50,27 @@ there.
 
 ## Files
 
-- `deploy_policy.py` -- loads an exported policy and runs the real-time control loop against
-  the physical SO-101 via LeRobot's driver (TODO: almost everything, see file)
-- `real_robot_interface.py` -- thin wrapper around LeRobot's SO-101 driver exposing exactly the
-  read-obs / send-action interface `deploy_policy.py` needs (TODO)
+Run from this directory on the Mac, in the order you would use them on a new arm. All talk
+to the servos through `scservo_sdk` (`pip install feetech-servo-sdk`); LeRobot is not needed.
+
+- `scan_motors.py` -- scan every common baud rate and list the servo IDs/models that answer
+- `read_joints.py` -- live raw tick readout per joint, for hand-sweep checks
+- `diag_servo.py` -- read one servo's control table and check write results (why won't it move?)
+- `real_robot_interface.py` -- `SO101Bus`: tick<->radian mapping (651.9 ticks/rad, 2048 = 0),
+  URDF joint clamps, checked writes, thermal monitoring. Motion is off unless `allow_motion=True`
+- `goto_zero.py` -- ramp joints one at a time to the sim zero pose at 0.2 rad/s; dry run by
+  default, `--allow-motion` to move, `--hold` to keep torque on afterwards
+- `deploy_policy.py` -- run an exported `policy.onnx` at 50 Hz; dry run by default
+
+Exported policies (`policy.onnx` + its `policy.onnx.data` weights) and run logs are gitignored.
+
+## Status (2026-09-23)
+
+- All six joints' signs and the tick->radian scale are verified on hardware by ramping each
+  joint to zero. They settle 10-16 ticks short under load (P-only loop + deadband).
+- The first reach policy does **not** transfer: even started from the exact zero pose, it
+  swings back and forth in a regular ~2.4 s cycle instead of settling. The policy learned
+  on sim joints that respond almost instantly (up to 0.25 rad per 20 ms step), while the
+  real servos top out near 0.92 rad/s, so every step pushes against the 0.12 rad cap on
+  how far the command may lead the arm. The fix is a retrain with realistic joint speed
+  and action scale plus start-pose randomization, not a deploy-side change.
