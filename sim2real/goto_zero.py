@@ -28,7 +28,7 @@ from real_robot_interface import JOINT_LIMITS_RAD, JOINT_NAMES, SO101Bus
 RATE_HZ = 50.0
 # 0.004 rad/step at 50 Hz = 0.2 rad/s = ~11 deg/s. Deliberately crawling.
 STEP_RAD = 0.004
-TOL_RAD = 0.01
+TOL_RAD = 0.025  # STS3215 settles up to ~10-16 ticks short under load (P-only loop + deadband)
 
 # Least-consequence first: gripper is already near zero, wrists are low-inertia and far
 # from the table, the shoulder carries the whole arm so it goes last.
@@ -56,6 +56,11 @@ def ramp_joint(bus: SO101Bus, name: str, allow_motion: bool, timeout_s: float = 
         print("    DRY RUN - not moving. Re-run with --allow-motion.")
         return True
 
+    # Latch the other joints' hold targets once. Re-reading them every loop lets a
+    # joint that sags under gravity have its sagged position become its new target,
+    # so it ratchets downward (seen as wrist_flex drifting 0.10 rad during a wrist_roll ramp).
+    hold = bus.read_positions_rad()
+
     setpoint = start
     stall_ref, stall_since = start, time.time()
 
@@ -71,7 +76,7 @@ def ramp_joint(bus: SO101Bus, name: str, allow_motion: bool, timeout_s: float = 
         setpoint += max(-STEP_RAD, min(STEP_RAD, remaining))
         setpoint = min(max(setpoint, lo), hi)
 
-        targets = list(pos)          # hold the other joints where they are
+        targets = list(hold)         # hold the other joints at their latched pose
         targets[idx] = setpoint
         bus.write_targets_rad(targets)
 
