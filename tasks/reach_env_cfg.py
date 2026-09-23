@@ -89,9 +89,13 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    # TODO: scale, clip
+    # target = current_pos + clip(scale * action). `clip` acts on the *scaled* offset (rad), and the
+    # raw action is otherwise unbounded, so the old clip of +-1.0 rad never engaged. +-scale matches
+    # deploy_policy.py, which clips the raw action to [-1, 1] before scaling. Speed is limited by
+    # the actuator's velocity_limit_sim, not by shrinking scale: with relative targets, holding
+    # torque is stiffness * offset, and a small offset cannot hold the arm up against gravity.
     arm_action: ActionTerm = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot", joint_names=[".*"], scale=0.25, clip={".*": (-1.0, 1.0)}
+        asset_name="robot", joint_names=[".*"], scale=0.25, clip={".*": (-0.25, 0.25)}
     )
     gripper_action: ActionTerm | None = None
 
@@ -122,12 +126,28 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
+    # Offset, not scale: the default pose is all zeros, so reset_joints_by_scale always produced
+    # q=0 and the policy never saw any other start. Clamped to the joint limits by the event.
     reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": (0.5, 1.5),
+            "position_range": (-1.0, 1.0),
             "velocity_range": (0.0, 0.0),
+        },
+    )
+
+    # The real servos are stiffer and less uniform than the sim actuator; train across a spread
+    # so the policy does not depend on one exact gain.
+    randomize_actuator_gains = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stiffness_distribution_params": (0.7, 1.3),
+            "damping_distribution_params": (1.0, 1.0),
+            "operation": "scale",
+            "distribution": "uniform",
         },
     )
 

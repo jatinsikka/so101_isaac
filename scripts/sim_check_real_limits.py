@@ -5,11 +5,17 @@ zero pose. The hypothesis is an actuator speed mismatch: in sim a joint can move
 20 ms step, the real STS3215s are capped near 0.92 rad/s. This reproduces the real test in
 sim, so the hypothesis can be confirmed before spending a retrain on it.
 
-    --mode sim    stock training physics (baseline -- should converge)
-    --mode real   joint velocity capped at 0.92 rad/s, per-step delta capped at 0.02 rad,
-                  exactly what sim2real/deploy_policy.py + GOAL_SPEED=600 impose
+    --mode sim    the ORIGINAL training physics: 10 rad/s joints, +-1 rad offset clip
+                  (baseline for the first policy -- should converge)
+    --mode real   the ORIGINAL deploy: 0.92 rad/s joints, 0.02 rad/step clamp
+                  (what the first hardware run did -- expected to oscillate)
+    --mode match  the actuator-matched setup: 0.92 rad/s joints, +-0.25 rad clip, which is
+                  both the new training config and the new deploy rule (for the retrained policy)
 
-Both modes start every env at the zero pose with the same fixed target the real run used,
+Every mode sets these explicitly, so the result does not depend on which branch's defaults
+are checked out.
+
+Every mode starts every env at the zero pose with the same fixed target the real run used,
 (0.27, 0, 0.15) in the base frame, and report end-effector error and joint oscillation.
 If `real` oscillates like the hardware did and `sim` does not, the diagnosis holds.
 
@@ -18,6 +24,9 @@ Run from the IsaacLab directory (a bare `play.py`-style filename would be aliase
         --task reach-v0 --headless --mode sim  --load_run <run_folder>
     ./isaaclab.sh -p ~/projects/so101_isaac/scripts/sim_check_real_limits.py \
         --task reach-v0 --headless --mode real --load_run <run_folder>
+    # after retraining, on the new run:
+    ./isaaclab.sh -p ~/projects/so101_isaac/scripts/sim_check_real_limits.py \
+        --task reach-v0 --headless --mode match --load_run <new_run_folder>
 
 Approximations vs the real deploy loop: sim bases each target on the measured position
 (RelativeJointPositionAction), while deploy_policy integrates a setpoint with a 0.12 rad
@@ -34,12 +43,10 @@ import cli_args  # isort: skip
 parser = argparse.ArgumentParser(description="Check the reach policy under real-arm actuator limits.")
 parser.add_argument("--task", type=str, default="reach-v0")
 parser.add_argument("--agent", type=str, default="rsl_rl_cfg_entry_point")
-parser.add_argument("--mode", choices=["sim", "real"], required=True)
+parser.add_argument("--mode", choices=["sim", "real", "match"], required=True)
 parser.add_argument("--num_envs", type=int, default=64)
 parser.add_argument("--seconds", type=float, default=10.0, help="matches the real 10 s run")
 parser.add_argument("--target", type=float, nargs=3, default=(0.27, 0.0, 0.15), metavar=("X", "Y", "Z"))
-parser.add_argument("--max_joint_vel", type=float, default=0.92, help="rad/s, real GOAL_SPEED=600 ticks/s")
-parser.add_argument("--max_delta", type=float, default=0.02, help="rad/step, deploy_policy MAX_DELTA_RAD_PER_STEP")
 cli_args.add_rsl_rl_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
@@ -57,6 +64,7 @@ import torch
 
 from robot_rl.runners import OnPolicyRunner
 
+import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils.math import subtract_frame_transforms
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
@@ -79,14 +87,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     env_cfg.commands.ee_pose.resampling_time_range = (1e6, 1e6)
     env_cfg.commands.ee_pose.debug_vis = False
     env_cfg.episode_length_s = args_cli.seconds + 5.0  # no timeout reset mid-measurement
-    # reset_joints_by_scale on an all-zero default pose already starts every env at q=0
+    # Start every env at q=0 like the hardware test, with nominal actuator gains.
+    env_cfg.events.reset_robot_joints.func = mdp.reset_joints_by_offset
+    env_cfg.events.reset_robot_joints.params["position_range"] = (0.0, 0.0)
+    if hasattr(env_cfg.events, "randomize_actuator_gains"):
+        env_cfg.events.randomize_actuator_gains = None
 
-    if args_cli.mode == "real":
-        for act in env_cfg.scene.robot.actuators.values():
-            act.velocity_limit_sim = args_cli.max_joint_vel
-        # JointAction clips the *processed* (scaled) action, and last_action still observes the
-        # raw one -- the same split deploy_policy.py has, so this matches its delta clamp exactly.
-        env_cfg.actions.arm_action.clip = {".*": (-args_cli.max_delta, args_cli.max_delta)}
+    # (joint velocity limit rad/s, per-step offset clip rad). JointAction clips the *processed*
+    # (scaled) action and last_action observes the raw one -- the same split deploy_policy.py has.
+    max_joint_vel, max_delta = {"sim": (10.0, 1.0), "real": (0.92, 0.02), "match": (0.92, 0.25)}[args_cli.mode]
+    for act in env_cfg.scene.robot.actuators.values():
+        act.velocity_limit_sim = max_joint_vel
+    env_cfg.actions.arm_action.clip = {".*": (-max_delta, max_delta)}
+    print(f"[INFO] mode {args_cli.mode}: velocity_limit_sim={max_joint_vel} rad/s, offset clip=+-{max_delta} rad")
 
     env = gym.make(args_cli.task, cfg=env_cfg)
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
