@@ -41,8 +41,10 @@ answers nothing, its 12 V supply is off.
 1. **Back up servo calibration**: `python 01_backup_servo_calibration.py --arm follower`
    (and `--arm leader`). LeRobot calibration rewrites EEPROM offsets; this keeps the old ones.
    Backups land in `backups/` and are committed. Undo with `--restore backups/<file>.json`.
-2. **Calibrate both arms with LeRobot**. See "Calibration" below. Use `02_live_pose_check.py`
-   first to line the follower up with the sim zero pose.
+2. **Calibrate both arms with LeRobot** ✅ (2026-09-23). See "Calibration" below. Use
+   `02_live_pose_check.py` first to line the follower up with the sim zero pose.
+   Result: the follower's homing offsets moved at most 2.5° versus the pre-calibration backup,
+   so the RL zero pose is intact. The servos now also enforce the swept min/max limits.
 3. Teleoperate. *(next)*
 4. Record demonstrations. *(next)*
 5. Train ACT, then run the policy. *(next)*
