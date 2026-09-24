@@ -45,7 +45,7 @@ answers nothing, its 12 V supply is off.
    `02_live_pose_check.py` first to line the follower up with the sim zero pose.
    Result: the follower's homing offsets moved at most 2.5° versus the pre-calibration backup,
    so the RL zero pose is intact. The servos now also enforce the swept min/max limits.
-3. Teleoperate. *(next)*
+3. **Teleoperate** ✅ (2026-09-23): 157 s at 59.5 Hz with no problems. See "Teleop" below.
 4. Record demonstrations. *(next)*
 5. Train ACT, then run the policy. *(next)*
 
@@ -76,3 +76,35 @@ lerobot-calibrate --teleop.type=so101_leader --teleop.port=/dev/tty.usbmodem5A7C
 
 During the range sweep, go gently to each mechanical stop; the recorded min/max become the
 servo's position limits, so a joint you don't sweep fully will be clamped short later.
+
+## Teleop
+
+Put both arms in roughly the same pose first: on start, the follower jumps to the leader's
+pose. `max_relative_target=10` caps each step's change at 10 degrees (the calibration uses
+degrees), so a pose mismatch can't throw the arm. Ctrl+C makes the follower go limp, so
+support it.
+
+```bash
+lerobot-teleoperate \
+    --robot.type=so101_follower --robot.port=/dev/tty.usbmodem5AAF2879831 \
+    --robot.id=so101_follower --robot.calibration_dir=calibration/follower \
+    --robot.max_relative_target=10 \
+    --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
+    --teleop.type=so101_leader --teleop.port=/dev/tty.usbmodem5A7C1192341 \
+    --teleop.id=so101_leader --teleop.calibration_dir=calibration/leader \
+    --display_data=true
+```
+
+`--display_data=true` opens LeRobot's viewer with the joint plots and the wrist-camera feed.
+
+## Camera
+
+The wrist camera is **OpenCV index 0** (it reports "USB2.0_CAM1" in System Information). We
+record at 640x480 @ 30 fps: the policy downsamples images anyway, and 1080p over USB 2.0 slows
+the control loop.
+
+- macOS blocks the camera until your terminal app is allowed under System Settings > Privacy &
+  Security > Camera. Quit and reopen the terminal after allowing it.
+- **Indices can reorder** when cameras are added or removed (e.g. an iPhone Continuity Camera
+  showing up). If the view looks wrong, re-run `lerobot-find-cameras opencv` and check
+  `outputs/captured_images/` (gitignored).
