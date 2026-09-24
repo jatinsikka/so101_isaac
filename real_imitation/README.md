@@ -8,6 +8,23 @@ This is separate from `imitation/`, which is the *sim* behavioural-cloning scaff
 Everything here runs on the Mac with both arms plugged in. Shared settings (ports, arm ids)
 are in `config.py`.
 
+## Python environment
+
+LeRobot needs its own conda env on **Python 3.12**. The base env is Python 3.14, where
+LeRobot's config parser (`draccus` 0.11.6) crashes with `TypeError: str | None is not callable`.
+
+```bash
+# one-time setup (conda-forge only, so no Anaconda ToS prompt)
+conda create -n lerobot --override-channels -c conda-forge python=3.12 ffmpeg
+conda activate lerobot
+pip install -e ~/lerobot[feetech]
+
+# every session
+conda activate lerobot
+```
+
+Everything in this folder runs in that env. (`sim2real/` still runs in base.)
+
 ## Hardware (identified 2026-09-23)
 
 | Arm | Port | Supply | Notes |
@@ -42,6 +59,7 @@ joint reads ~0° in `02_live_pose_check.py`). That keeps the RL deploy stack's
 2048-ticks-is-zero assumption true. Use the same physical pose for the leader.
 
 ```bash
+conda activate lerobot
 cd ~/so101_isaac/real_imitation
 python 02_live_pose_check.py --arm follower   # line up, Ctrl+C, keep holding the pose
 
