@@ -46,7 +46,9 @@ answers nothing, its 12 V supply is off.
    Result: the follower's homing offsets moved at most 2.5° versus the pre-calibration backup,
    so the RL zero pose is intact. The servos now also enforce the swept min/max limits.
 3. **Teleoperate** ✅ (2026-09-23): 157 s at 59.5 Hz with no problems. See "Teleop" below.
-4. Record demonstrations. *(next)*
+4. **Record demonstrations**: `./04_record.sh 2` for a trial, then `./04_record.sh 50 --resume`.
+   Settings and keyboard controls are commented at the top of the script. Datasets go to
+   `data/` (gitignored).
 5. Train ACT, then run the policy. *(next)*
 
 ## Calibration
@@ -78,6 +80,8 @@ During the range sweep, go gently to each mechanical stop; the recorded min/max 
 servo's position limits, so a joint you don't sweep fully will be clamped short later.
 
 ## Teleop
+
+Shortcut: `./03_teleop.sh` (shared settings are in `common.sh`). The full command is shown below.
 
 Put both arms in roughly the same pose first: on start, the follower jumps to the leader's
 pose. `max_relative_target=10` caps each step's change at 10 degrees (the calibration uses

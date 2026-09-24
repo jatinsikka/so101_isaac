@@ -214,3 +214,6 @@ __marimo__/
 # exported policies (weights live in the .onnx.data sidecar); retrains replace them
 sim2real/policy.onnx
 sim2real/policy.onnx.data
+
+# real-arm demo datasets (video, large); keep them local or on the HF Hub
+real_imitation/data/
