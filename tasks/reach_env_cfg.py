@@ -89,9 +89,13 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    # TODO: scale, clip
+    # target = current_pos + clip(scale * action). `clip` acts on the *scaled* offset (rad), and the
+    # raw action is otherwise unbounded, so the old clip of +-1.0 rad never engaged. +-scale matches
+    # deploy_policy.py, which clips the raw action to [-1, 1] before scaling. Speed is limited by
+    # the actuator's velocity_limit_sim, not by shrinking scale: with relative targets, holding
+    # torque is stiffness * offset, and a small offset cannot hold the arm up against gravity.
     arm_action: ActionTerm = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot", joint_names=[".*"], scale=0.25, clip={".*": (-1.0, 1.0)}
+        asset_name="robot", joint_names=[".*"], scale=0.25, clip={".*": (-0.25, 0.25)}
     )
     gripper_action: ActionTerm | None = None
 
