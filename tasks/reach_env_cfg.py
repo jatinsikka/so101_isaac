@@ -126,11 +126,13 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
+    # Offset, not scale: the default pose is all zeros, so reset_joints_by_scale always produced
+    # q=0 and the policy never saw any other start. Clamped to the joint limits by the event.
     reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_scale,
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "position_range": (0.5, 1.5),
+            "position_range": (-1.0, 1.0),
             "velocity_range": (0.0, 0.0),
         },
     )
