@@ -137,6 +137,20 @@ class EventCfg:
         },
     )
 
+    # The real servos are stiffer and less uniform than the sim actuator; train across a spread
+    # so the policy does not depend on one exact gain.
+    randomize_actuator_gains = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stiffness_distribution_params": (0.7, 1.3),
+            "damping_distribution_params": (1.0, 1.0),
+            "operation": "scale",
+            "distribution": "uniform",
+        },
+    )
+
 
 @configclass
 class RewardsCfg:
