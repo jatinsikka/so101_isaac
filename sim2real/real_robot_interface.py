@@ -45,9 +45,9 @@ TEMP_ABORT_C = 55
 # control table -- Mode was already 0 (position) and TorqueLimit 1000, so speed was
 # the only thing missing.
 #
-# GOAL_SPEED doubles as a hard velocity cap. 600 ticks/s ~= 0.92 rad/s, which is just
-# above the 1.0 rad/s that deploy_policy's per-step delta clamp allows, so the clamp
-# stays the thing actually governing speed rather than this.
+# GOAL_SPEED doubles as the hard velocity cap: 600 ticks/s ~= 0.92 rad/s. It is THE thing
+# governing joint speed (deploy's per-step offsets set where a joint heads, not how fast),
+# and assets/so101.py's velocity_limit_sim mirrors it. Change both together.
 GOAL_SPEED = 600
 ACCELERATION = 50
 
@@ -154,13 +154,25 @@ class SO101Bus:
         """Give the servos a speed/acceleration budget. Without this they will not move."""
         if not self.allow_motion:
             return
-        for motor_id in MOTOR_IDS:
+        for motor_id, name in zip(MOTOR_IDS, JOINT_NAMES):
             self._w2(motor_id, ADDR_GOAL_SPEED, goal_speed, "GoalSpeed")
             self._w1(motor_id, ADDR_ACCELERATION, acceleration, "Acceleration")
+            # GoalSpeed is the arm's only hard speed limit (deploy's offsets can be up to
+            # 0.25 rad), so read both back and refuse to continue unless they really stuck.
+            speed, comm_s, _ = self.packet.read2ByteTxRx(self.port, motor_id, ADDR_GOAL_SPEED)
+            acc, comm_a, _ = self.packet.read1ByteTxRx(self.port, motor_id, ADDR_ACCELERATION)
+            if comm_s != COMM_SUCCESS or comm_a != COMM_SUCCESS:
+                raise RuntimeError(f"could not read back speed limits on {name} (id {motor_id})")
+            if speed != goal_speed or acc != acceleration:
+                raise RuntimeError(f"speed limits on {name} did not stick: GoalSpeed {speed} "
+                                   f"(wanted {goal_speed}), Acceleration {acc} (wanted {acceleration})")
 
     def set_torque(self, on: bool) -> None:
         if not self.allow_motion:
             return
+        if on:
+            # speed cap first, so no servo is ever torqued without a verified limit
+            self.configure_motion()
         for motor_id, name in zip(MOTOR_IDS, JOINT_NAMES):
             self._w1(motor_id, ADDR_TORQUE_ENABLE, 1 if on else 0, "TorqueEnable")
             # read back rather than trust the write -- a silently-ignored torque enable
@@ -168,8 +180,6 @@ class SO101Bus:
             got, comm, _ = self.packet.read1ByteTxRx(self.port, motor_id, ADDR_TORQUE_ENABLE)
             if comm == COMM_SUCCESS and got != (1 if on else 0):
                 raise RuntimeError(f"TorqueEnable on {name} did not stick (wanted {int(on)}, read {got})")
-        if on:
-            self.configure_motion()
 
     def write_targets_rad(self, targets_rad: list[float]) -> list[float]:
         """Clamp targets to URDF limits and write them. Returns what was (or would be) sent.
