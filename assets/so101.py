@@ -45,7 +45,10 @@ SO101_CFG = ArticulationCfg(
     actuators={
         "sts3215": ImplicitActuatorCfg(
             joint_names_expr=[".*"],
-            effort_limit_sim=10.0,  # ".*_limit_sim" for Implicit, ".*_limit" for Ideal PD
+            # 12 V STS3215 stall torque is 30 kg.cm = 2.94 Nm, and the real servos run at TorqueLimit
+            # 1000 (100%, see sim2real/real_robot_interface.py). The old 10 Nm made the sim arm ~3.4x
+            # stronger than the real one.
+            effort_limit_sim=2.9,  # ".*_limit_sim" for Implicit, ".*_limit" for Ideal PD
             # Real STS3215s are commanded with GOAL_SPEED=600 ticks/s (sim2real/real_robot_interface.py),
             # i.e. 600 / 651.9 ticks/rad = 0.92 rad/s. At the old 10 rad/s the sim arm was ~10x faster
             # than the real one and the policy oscillated on hardware. Keep these two in sync.
