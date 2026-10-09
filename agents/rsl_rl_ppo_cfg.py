@@ -47,3 +47,11 @@ class VanillaPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 class ReachPPORunnerCfg(VanillaPPORunnerCfg):
     experiment_name = "so101_reach"
     wandb_project = "SO101_Reach"
+
+    def __post_init__(self):
+        # Less exploration noise for the actuator-matched arm. With std 1.0 most samples already
+        # land at or past the +-1 action clip, and the 0.01 entropy bonus kept rewarding a wider
+        # spread even though it only produced random full-force flailing (std rose 1 -> 2 in the
+        # first actuator-matched run). Start narrower and reward width less.
+        self.policy.init_noise_std = 0.5
+        self.algorithm.entropy_coef = 0.002
