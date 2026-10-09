@@ -14,8 +14,8 @@ POLICY I/O CONTRACT (from the trained checkpoint; ONNX reports obs[1,25] -> acti
     obs[0:6]   joint_pos_rel   = joint_pos - default(0)   rad
     obs[6:12]  joint_vel_rel   = joint_vel - default(0)   rad/s
     obs[12:19] pose_command    = target xyz + quat(w,x,y,z), ROBOT BASE frame
-    obs[19:25] last_action     = previous raw action, clipped to [-1, 1]
-    action     -> target = current_pos + ACTION_SCALE * clip(action, -1, 1)
+    obs[19:25] last_action     = previous raw action, UNclipped (as training observes it)
+    action     -> target = current_pos + clip(ACTION_SCALE * action, -0.25, 0.25)
     control rate 50 Hz (sim decimation 2 x dt 0.01)
 """
 
@@ -124,8 +124,9 @@ def main() -> None:
 
             obs = np.concatenate([pos, vel, pose_command, last_action]).astype(np.float32)[None, :]
             action = session.run(None, {obs_name: obs})[0].flatten()
-            action = np.clip(action, -1.0, 1.0)
 
+            # Clip the scaled OFFSET, not the raw action, exactly like ActionsCfg's clip. The raw
+            # action stays unclipped because training's last_action observation sees it unclipped.
             delta = np.clip(action * ACTION_SCALE, -args.max_delta, args.max_delta)
 
             # Same rule as training's RelativeJointPositionAction: target = measured + offset.
