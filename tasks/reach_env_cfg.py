@@ -188,6 +188,15 @@ class RewardsCfg:
     )
 
     # penalty terms
+    # Raw action size. The +-0.25 rad clip in ActionsCfg makes every raw action beyond +-1 move
+    # the arm exactly as much as +-1 does, so without this term pushing actions (or the policy's
+    # noise) far past the clip is free. With the slow 0.92 rad/s arm, "always request the max move"
+    # looked attractive, and the first actuator-matched run inflated its noise std 1 -> 2 and
+    # slammed every joint at the 2.9 Nm cap. Reads the unclipped action, so it does see past +-1.
+    action_magnitude = RewTerm(
+        func=mdp.action_l2,
+        weight=-0.05,
+    )
     action_rate = RewTerm(
         func=task_mdp.action_rate_l2,
         weight=-0.5
