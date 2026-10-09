@@ -52,6 +52,8 @@ class ReachPPORunnerCfg(VanillaPPORunnerCfg):
         # Less exploration noise for the actuator-matched arm. With std 1.0 most samples already
         # land at or past the +-1 action clip, and the 0.01 entropy bonus kept rewarding a wider
         # spread even though it only produced random full-force flailing (std rose 1 -> 2 in the
-        # first actuator-matched run). Start narrower and reward width less.
+        # first actuator-matched run). Start narrower and reward width less -- but not too little:
+        # at 0.002 the std collapsed 0.5 -> 0.09 within 200 iterations, before the policy had
+        # found the target, and it settled on folding the arm upright instead.
         self.policy.init_noise_std = 0.5
-        self.algorithm.entropy_coef = 0.002
+        self.algorithm.entropy_coef = 0.005
