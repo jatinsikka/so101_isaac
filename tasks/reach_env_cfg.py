@@ -159,6 +159,20 @@ class RewardsCfg:
     # TODO: weights
 
     # task terms
+    # Wide-kernel tracking: the two terms below use std 0.1 / 0.05 m, so at a typical starting
+    # error of ~0.27 m they pay 1 - tanh(2.7) ~ 0.009 and give no pull toward the target. With
+    # the slow actuator-matched arm the policy never stumbled close enough to find them, and
+    # settled into folding upright (minimal gravity torque). std 0.3 pays ~0.28 at 0.27 m and
+    # rises steadily all the way in.
+    end_effector_position_tracking_coarse = RewTerm(
+        func=task_mdp.position_command_error,
+        weight=1.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="gripper_link"),
+            "command_name": "ee_pose",
+            "std": 0.3,
+        },
+    )
     end_effector_position_tracking = RewTerm(
         func=task_mdp.position_command_error,
         weight=1.6,
