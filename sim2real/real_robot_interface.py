@@ -45,9 +45,10 @@ TEMP_ABORT_C = 55
 # control table -- Mode was already 0 (position) and TorqueLimit 1000, so speed was
 # the only thing missing.
 #
-# GOAL_SPEED doubles as a hard velocity cap. 600 ticks/s ~= 0.92 rad/s, which is just
-# above the 1.0 rad/s that deploy_policy's per-step delta clamp allows, so the clamp
-# stays the thing actually governing speed rather than this.
+# GOAL_SPEED doubles as a hard velocity cap: 600 ticks/s ~= 0.92 rad/s. This is THE speed
+# limit for deploy_policy.py, which applies actions like training (target = measured +
+# 0.25 * action) with no per-step clamp of its own. The run-14 policy moves at most
+# ~0.89 rad/s in sim, so this cap matches what it was trained on.
 GOAL_SPEED = 600
 ACCELERATION = 50
 
