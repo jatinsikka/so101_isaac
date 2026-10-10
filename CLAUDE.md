@@ -46,7 +46,7 @@ Code moves between the Mac and AWS through GitHub (`jatinsikka/so101_isaac`) onl
 
 ## Policy I/O contract (reach-v0)
 
-obs 25 = joint_pos_rel(6) + joint_vel_rel(6) + pose_command(7: xyz + quat wxyz, base frame)
+obs 25 = joint_pos_rel(6) + joint_vel_rel(6) + pose_command(7: xyz + quat **xyzw** (Isaac Lab 3.0 order), base frame)
 + last_action(6). action 6. 50 Hz. `target = current_pos + clip(0.25 * action)`, radians.
 Every episode starts at q=0 on `main` (reset by scale on an all-zero default).
 

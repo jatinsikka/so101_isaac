@@ -13,7 +13,7 @@ failures. Only pass --allow-motion once the dry-run numbers look right.
 POLICY I/O CONTRACT (from the trained checkpoint; ONNX reports obs[1,25] -> actions[1,6]):
     obs[0:6]   joint_pos_rel   = joint_pos - default(0)   rad
     obs[6:12]  joint_vel_rel   = joint_vel - default(0)   rad/s
-    obs[12:19] pose_command    = target xyz + quat(w,x,y,z), ROBOT BASE frame
+    obs[12:19] pose_command    = target xyz + quat(x,y,z,w) (Isaac Lab 3.0 order), ROBOT BASE frame
     obs[19:25] last_action     = previous raw action, UNclipped (as training observes it)
     action     -> target = current_pos + clip(ACTION_SCALE * action, -0.25, 0.25)
     control rate 50 Hz (sim decimation 2 x dt 0.01)
@@ -56,16 +56,20 @@ DEFAULT_TARGET_RPY = (0.0, -1.57, 0.0)
 
 
 def quat_from_euler_xyz(roll: float, pitch: float, yaw: float) -> tuple[float, float, float, float]:
-    """(w, x, y, z), matching Isaac Lab's quat_from_euler_xyz used by UniformPoseCommand."""
+    """(x, y, z, w), matching Isaac Lab 3.0's quat_from_euler_xyz used by UniformPoseCommand.
+
+    Isaac Lab 3.0 switched quaternions to xyzw (isaaclab/utils/math.py returns
+    stack([qx, qy, qz, qw])); older Isaac Lab, and earlier versions of this file, used wxyz.
+    Checked 2026-10-10 by probing the env: an identity root rotation reads [0, 0, 0, 1].
+    """
     cr, sr = math.cos(roll / 2), math.sin(roll / 2)
     cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
     cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
-    return (
-        cr * cp * cy + sr * sp * sy,
-        sr * cp * cy - cr * sp * sy,
-        cr * sp * cy + sr * cp * sy,
-        cr * cp * sy - sr * sp * cy,
-    )
+    w = cr * cp * cy + sr * sp * sy
+    x = sr * cp * cy - cr * sp * sy
+    y = cr * sp * cy + sr * cp * sy
+    z = cr * cp * sy - sr * sp * cy
+    return (x, y, z, w)
 
 
 def main() -> None:
@@ -98,7 +102,7 @@ def main() -> None:
 
     mode = "LIVE - ARM WILL MOVE" if args.allow_motion else "DRY RUN - no motor writes"
     print(f"\n=== {mode} ===")
-    print(f"target (base frame): xyz={tuple(args.target)}  quat(wxyz)={tuple(round(q, 4) for q in quat)}")
+    print(f"target (base frame): xyz={tuple(args.target)}  quat(xyzw)={tuple(round(q, 4) for q in quat)}")
     print(f"action scale {ACTION_SCALE}, per-step target offset clamped to {args.max_delta} rad\n")
 
     with SO101Bus(args.port, args.baud, allow_motion=args.allow_motion,
