@@ -32,7 +32,10 @@ class VanillaPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.01,
+        # C8 OLD| entropy_coef=0.01,
+        # >>> C8 NEW (2026-10-11): C7 run stopped exploring (noise std 0.02) at 5 cm
+        entropy_coef=0.02,
+        # <<< C8 NEW
         num_learning_epochs=8,
         num_mini_batches=4,
         learning_rate=1.0e-3,

@@ -57,8 +57,12 @@ SO101_CFG = ArticulationCfg(
             # C7 OLD| dynamic_friction=0.052,
             # C7 OLD| friction=0.052,
             # >>> C7 NEW (2026-10-10): gearbox friction -> ignores offsets < ~0.02 rad, like the real joint
-            dynamic_friction=0.7,
-            friction=0.7,
+            # C8 OLD| dynamic_friction=0.7,
+            # C8 OLD| friction=0.7,
+            # >>> C8 NEW (2026-10-11): real arm sags faster than sim at 0.7
+            dynamic_friction=0.4,
+            friction=0.4,
+            # <<< C8 NEW
             # <<< C7 NEW
             viscous_friction=0.6,
         ),
