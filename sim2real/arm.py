@@ -39,10 +39,7 @@ MAX_TEMP_C = 55   # stop before the servos' ~70 C shutdown
 # P gain of the servo's position loop: push = P x error. Factory default 32; LeRobot writes 16
 # on every connect (smoother teleop), which left the elbow stopping ~0.05 rad short of its
 # target (step test, 2026-10-10). Set on every torque_on, so it is right whoever touched it last.
-# C5 OLD| P_GAIN = 32
-# >>> C5 NEW (2026-10-10): P = 32 still left a 0.02 rad gap; try 64 (watch for buzzing)
-P_GAIN = 64
-# <<< C5 NEW
+P_GAIN = 32
 # <<< C4 NEW
 
 # STS3215 register addresses
