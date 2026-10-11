@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from arm import JOINTS, Arm
+from arm import JOINTS, LIMITS, Arm
 
 STEPS = [0.01, 0.02, 0.05, 0.1, 0.2]  # rad (0.2 rad = 11.5 deg)
 RECORD_S = 1.0
@@ -48,7 +48,11 @@ if __name__ == "__main__":
 
     arm = Arm(can_move=args.move)
     hold = arm.read_joints()
-    print(f"{args.joint} starts at {hold[j]:+.3f} rad; steps (rad): {STEPS}")
+    # Step away from the nearer joint limit, so a big step never runs into it.
+    lo, hi = LIMITS[j]
+    sign = 1.0 if hi - hold[j] >= hold[j] - lo else -1.0
+    print(f"{args.joint} starts at {hold[j]:+.3f} rad (limits {lo:+.2f}..{hi:+.2f}); "
+          f"steps {'+' if sign > 0 else '-'}{STEPS} rad")
     if not args.move:
         print("DRY RUN -- add --move to run the test.")
         raise SystemExit
@@ -63,13 +67,13 @@ if __name__ == "__main__":
         print(f"\n{'step':>6} {'reached':>8} {'time to 90%':>12} {'back to':>8}")
         for step in STEPS:
             target = hold.copy()
-            target[j] += step
+            target[j] += sign * step
             up = record(arm, target, RECORD_S)   # target moved by `step`
             back = record(arm, hold, RECORD_S)   # target put back
             for phase, rows, tgt in (("up", up, target[j]), ("back", back, hold[j])):
                 for t, q, load in rows:
-                    log.writerow([step, phase, f"{t:.3f}", f"{tgt:.4f}", f"{q[j]:.4f}", load[j]])
-            moved = np.array([q[j] for _, q, _ in up]) - hold[j]
+                    log.writerow([sign * step, phase, f"{t:.3f}", f"{tgt:.4f}", f"{q[j]:.4f}", load[j]])
+            moved = sign * (np.array([q[j] for _, q, _ in up]) - hold[j])  # progress toward the target
             hit = np.nonzero(moved >= 0.9 * step)[0]
             t90 = f"{up[hit[0]][0]:.2f} s" if len(hit) else "never"
             print(f"{step:>6.2f} {moved[-1] / step:>7.0%} {t90:>12} {back[-1][1][j] - hold[j]:>+8.3f}")
