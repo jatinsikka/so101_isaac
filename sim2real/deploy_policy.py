@@ -13,7 +13,10 @@ failures. Only pass --allow-motion once the dry-run numbers look right.
 POLICY I/O CONTRACT (from the trained checkpoint; ONNX reports obs[1,25] -> actions[1,6]):
     obs[0:6]   joint_pos_rel   = joint_pos - default(0)   rad
     obs[6:12]  joint_vel_rel   = joint_vel - default(0)   rad/s
-    obs[12:19] pose_command    = target xyz + quat(w,x,y,z), ROBOT BASE frame
+    # C1 OLD| obs[12:19] pose_command    = target xyz + quat(w,x,y,z), ROBOT BASE frame
+    # >>> C1 NEW (2026-10-10)
+    obs[12:19] pose_command    = target xyz + quat(x,y,z,w) (Isaac Lab 3.0 order), ROBOT BASE frame
+    # <<< C1 NEW
     obs[19:25] last_action     = previous raw action, clipped to [-1, 1]
     action     -> target = current_pos + ACTION_SCALE * clip(action, -1, 1)
     control rate 50 Hz (sim decimation 2 x dt 0.01)
@@ -50,16 +53,31 @@ DEFAULT_TARGET_RPY = (0.0, -1.57, 0.0)
 
 
 def quat_from_euler_xyz(roll: float, pitch: float, yaw: float) -> tuple[float, float, float, float]:
-    """(w, x, y, z), matching Isaac Lab's quat_from_euler_xyz used by UniformPoseCommand."""
+    # C1 OLD| """(w, x, y, z), matching Isaac Lab's quat_from_euler_xyz used by UniformPoseCommand."""
+    # >>> C1 NEW (2026-10-10): Isaac Lab 3.0 orders quaternions (x, y, z, w)
+    """(x, y, z, w), matching Isaac Lab 3.0's quat_from_euler_xyz used by UniformPoseCommand.
+
+    Isaac Lab 3.0 switched quaternions to xyzw (isaaclab/utils/math.py returns
+    stack([qx, qy, qz, qw])); older Isaac Lab, and earlier versions of this file, used wxyz.
+    Checked 2026-10-10 by probing the env: an identity root rotation reads [0, 0, 0, 1].
+    """
+    # <<< C1 NEW
     cr, sr = math.cos(roll / 2), math.sin(roll / 2)
     cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
     cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
-    return (
-        cr * cp * cy + sr * sp * sy,
-        sr * cp * cy - cr * sp * sy,
-        cr * sp * cy + sr * cp * sy,
-        cr * cp * sy - sr * sp * cy,
-    )
+    # C1 OLD| return (
+    # C1 OLD|     cr * cp * cy + sr * sp * sy,
+    # C1 OLD|     sr * cp * cy - cr * sp * sy,
+    # C1 OLD|     cr * sp * cy + sr * cp * sy,
+    # C1 OLD|     cr * cp * sy - sr * sp * cy,
+    # C1 OLD| )
+    # >>> C1 NEW (2026-10-10)
+    w = cr * cp * cy + sr * sp * sy
+    x = sr * cp * cy - cr * sp * sy
+    y = cr * sp * cy + sr * cp * sy
+    z = cr * cp * sy - sr * sp * cy
+    return (x, y, z, w)
+    # <<< C1 NEW
 
 
 def main() -> None:
@@ -89,7 +107,10 @@ def main() -> None:
 
     mode = "LIVE - ARM WILL MOVE" if args.allow_motion else "DRY RUN - no motor writes"
     print(f"\n=== {mode} ===")
-    print(f"target (base frame): xyz={tuple(args.target)}  quat(wxyz)={tuple(round(q, 4) for q in quat)}")
+    # C1 OLD| print(f"target (base frame): xyz={tuple(args.target)}  quat(wxyz)={tuple(round(q, 4) for q in quat)}")
+    # >>> C1 NEW (2026-10-10)
+    print(f"target (base frame): xyz={tuple(args.target)}  quat(xyzw)={tuple(round(q, 4) for q in quat)}")
+    # <<< C1 NEW
     print(f"action scale {ACTION_SCALE}, per-step delta clamped to {MAX_DELTA_RAD_PER_STEP} rad\n")
 
     with SO101Bus(args.port, args.baud, allow_motion=args.allow_motion,
