@@ -35,9 +35,18 @@ LIMITS = np.array([
 SPEED = 600       # ticks/s, the servo's own speed cap: 600 / 651.9 = 0.92 rad/s
 ACCEL = 50        # servo acceleration setting
 MAX_TEMP_C = 55   # stop before the servos' ~70 C shutdown
+# >>> C4 NEW (2026-10-10): servo stiffness
+# P gain of the servo's position loop: push = P x error. Factory default 32; LeRobot writes 16
+# on every connect (smoother teleop), which left the elbow stopping ~0.05 rad short of its
+# target (step test, 2026-10-10). Set on every torque_on, so it is right whoever touched it last.
+P_GAIN = 32
+# <<< C4 NEW
 
 # STS3215 register addresses
 TORQUE_ENABLE, ACCELERATION, GOAL_POSITION, GOAL_SPEED = 40, 41, 42, 46
+# >>> C4 NEW (2026-10-10)
+P_COEFFICIENT = 21
+# <<< C4 NEW
 PRESENT_POSITION, PRESENT_LOAD, PRESENT_TEMP = 56, 60, 63
 
 
@@ -101,6 +110,9 @@ class Arm:
             self._write(motor_id, GOAL_POSITION, 2, ticks)  # target = here, so nothing jumps
             self._write(motor_id, GOAL_SPEED, 2, SPEED)     # without a speed the servo never moves
             self._write(motor_id, ACCELERATION, 1, ACCEL)
+            # >>> C4 NEW (2026-10-10)
+            self._write(motor_id, P_COEFFICIENT, 1, P_GAIN)  # stiffer position loop
+            # <<< C4 NEW
             self._write(motor_id, TORQUE_ENABLE, 1, 1)
 
     def torque_off(self):
@@ -140,4 +152,7 @@ if __name__ == "__main__":
     else:
         print_joints(arm.read_joints())
         print("  temps (C):", arm.temperatures(), "  loads:", arm.loads())
+        # >>> C4 NEW (2026-10-10)
+        print("  P gains:  ", [arm._read(i, P_COEFFICIENT, 1) for i in IDS])
+        # <<< C4 NEW
     arm.close()
