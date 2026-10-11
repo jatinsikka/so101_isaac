@@ -1,0 +1,61 @@
+{
+  "arm": "leader",
+  "port": "/dev/tty.usbmodem5A7C1192341",
+  "taken": "2026-09-23T19:02:39",
+  "motors": {
+    "shoulder_pan": {
+      "id": 1,
+      "Homing_Offset": 2475,
+      "Min_Position_Limit": 0,
+      "Max_Position_Limit": 4095,
+      "Present_Position": 2024,
+      "Operating_Mode": 0,
+      "P_Coefficient": 32
+    },
+    "shoulder_lift": {
+      "id": 2,
+      "Homing_Offset": 1063,
+      "Min_Position_Limit": 0,
+      "Max_Position_Limit": 4095,
+      "Present_Position": 860,
+      "Operating_Mode": 0,
+      "P_Coefficient": 32
+    },
+    "elbow_flex": {
+      "id": 3,
+      "Homing_Offset": 2153,
+      "Min_Position_Limit": 0,
+      "Max_Position_Limit": 4095,
+      "Present_Position": 3072,
+      "Operating_Mode": 0,
+      "P_Coefficient": 32
+    },
+    "wrist_flex": {
+      "id": 4,
+      "Homing_Offset": 162,
+      "Min_Position_Limit": 0,
+      "Max_Position_Limit": 4095,
+      "Present_Position": 2687,
+      "Operating_Mode": 0,
+      "P_Coefficient": 32
+    },
+    "wrist_roll": {
+      "id": 5,
+      "Homing_Offset": 2686,
+      "Min_Position_Limit": 0,
+      "Max_Position_Limit": 4095,
+      "Present_Position": 2113,
+      "Operating_Mode": 0,
+      "P_Coefficient": 32
+    },
+    "gripper": {
+      "id": 6,
+      "Homing_Offset": 3923,
+      "Min_Position_Limit": 0,
+      "Max_Position_Limit": 4095,
+      "Present_Position": 2048,
+      "Operating_Mode": 0,
+      "P_Coefficient": 32
+    }
+  }
+}
