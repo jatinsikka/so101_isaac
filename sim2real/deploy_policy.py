@@ -36,29 +36,15 @@ from real_robot_interface import JOINT_NAMES, SO101Bus
 CONTROL_HZ = 50.0
 ACTION_SCALE = 0.25  # matches the trained ActionsCfg
 
-# C2 OLD| # The trained action scale of 0.25 rad/step at 50 Hz is ~716 deg/s sustained, which is
-# C2 OLD| # roughly twice what an STS3215 can actually deliver. Start well under it and raise only
-# C2 OLD| # once the arm behaves. This is the single most important safety number here.
-# C2 OLD| MAX_DELTA_RAD_PER_STEP = 0.02
+# The trained action scale of 0.25 rad/step at 50 Hz is ~716 deg/s sustained, which is
+# roughly twice what an STS3215 can actually deliver. Start well under it and raise only
+# once the arm behaves. This is the single most important safety number here.
+MAX_DELTA_RAD_PER_STEP = 0.02
 
-# C2 OLD| # How far the integrated setpoint may lead the measured position before we stop
-# C2 OLD| # advancing it. Without this, a blocked or slow joint lets the setpoint run away
-# C2 OLD| # (integrator windup) and the arm lunges once it frees up.
-# C2 OLD| MAX_LEAD_RAD = 0.12
-# >>> C2 NEW (2026-10-10): apply actions like training, no deploy-side clamp
-# Actions are applied exactly as in training: target = measured + ACTION_SCALE * action.
-# The action is clipped to [-1, 1], so a target is never more than 0.25 rad from where the
-# joint is right now.
-#
-# SAFETY: the offset sets WHERE a joint heads, not how fast. Speed is capped by the servos'
-# GOAL_SPEED (600 ticks/s ~ 0.92 rad/s, written on every torque-on in real_robot_interface.py);
-# in sim the run-14 policy never moved a joint faster than 0.89 rad/s, so the cap does not
-# change its behaviour. A bigger offset DOES mean a blocked joint (table, hand) pushes harder.
-#
-# (An older version capped each step at 0.02 rad and integrated its own setpoint with a 0.12 rad
-# lead cap. That drove the arm differently from training and it oscillated on hardware
-# (live_run1.log, live_run2.log), while the same policy reaches the target in sim.)
-# <<< C2 NEW
+# How far the integrated setpoint may lead the measured position before we stop
+# advancing it. Without this, a blocked or slow joint lets the setpoint run away
+# (integrator windup) and the arm lunges once it frees up.
+MAX_LEAD_RAD = 0.12
 
 # Command ranges the policy was trained on (CommandsCfg, robot base frame):
 #   pos_x 0.20..0.34, pos_y -0.10..0.10, pos_z 0.05..0.25, roll 0, pitch -1.57, yaw 0
@@ -125,18 +111,15 @@ def main() -> None:
     # >>> C1 NEW (2026-10-10)
     print(f"target (base frame): xyz={tuple(args.target)}  quat(xyzw)={tuple(round(q, 4) for q in quat)}")
     # <<< C1 NEW
-    # C2 OLD| print(f"action scale {ACTION_SCALE}, per-step delta clamped to {MAX_DELTA_RAD_PER_STEP} rad\n")
-    # >>> C2 NEW (2026-10-10)
-    print(f"action scale {ACTION_SCALE}: target = measured + {ACTION_SCALE} * clip(action, -1, 1)\n")
-    # <<< C2 NEW
+    print(f"action scale {ACTION_SCALE}, per-step delta clamped to {MAX_DELTA_RAD_PER_STEP} rad\n")
 
     with SO101Bus(args.port, args.baud, allow_motion=args.allow_motion,
                   release_on_close=not args.hold) as bus:
         prev_pos = np.array(bus.read_positions_rad(), dtype=np.float32)
-        # C2 OLD| # Commanded setpoint, integrated from the policy's deltas. Seeded at the current
-        # C2 OLD| # measured pose. See the comment at the write site for why this is not just
-        # C2 OLD| # (measured_position + delta).
-        # C2 OLD| setpoint = prev_pos.copy()
+        # Commanded setpoint, integrated from the policy's deltas. Seeded at the current
+        # measured pose. See the comment at the write site for why this is not just
+        # (measured_position + delta).
+        setpoint = prev_pos.copy()
         if args.allow_motion:
             bus.set_torque(True)
 
@@ -159,27 +142,21 @@ def main() -> None:
             action = session.run(None, {obs_name: obs})[0].flatten()
             action = np.clip(action, -1.0, 1.0)
 
-            # C2 OLD| delta = np.clip(action * ACTION_SCALE, -MAX_DELTA_RAD_PER_STEP, MAX_DELTA_RAD_PER_STEP)
+            delta = np.clip(action * ACTION_SCALE, -MAX_DELTA_RAD_PER_STEP, MAX_DELTA_RAD_PER_STEP)
 
-            # C2 OLD| # Integrate onto the previous setpoint rather than onto the measured position.
-            # C2 OLD| # Sim's RelativeJointPositionAction uses target = current_pos + delta, which
-            # C2 OLD| # works there because the joint reaches its target within a control step. Real
-            # C2 OLD| # servos lag and have a positional deadband, so re-basing on the measured
-            # C2 OLD| # position issues a fresh small target every step, the servo never completes a
-            # C2 OLD| # move, and the arm creeps instead of tracking. Integrating also matches what
-            # C2 OLD| # the policy saw in training, since tight sim tracking makes
-            # C2 OLD| # current_pos + delta ~= previous_target + delta.
-            # C2 OLD| setpoint = setpoint + delta
-            # C2 OLD| # anti-windup: never let the command lead the actual joint by more than this
-            # C2 OLD| setpoint = np.clip(setpoint, pos - MAX_LEAD_RAD, pos + MAX_LEAD_RAD)
-            # C2 OLD| targets = bus.write_targets_rad(setpoint.tolist())
-            # C2 OLD| setpoint = np.array(targets, dtype=np.float32)  # adopt any joint-limit clamping
-            # >>> C2 NEW (2026-10-10): target = measured + 0.25 * action, same as training
-            # Same rule as training's RelativeJointPositionAction: the new target is an offset
-            # from where the joint IS now (measured), not from the last command. The servo then
-            # travels toward it at up to GOAL_SPEED, like the sim joint does.
-            targets = bus.write_targets_rad((pos + ACTION_SCALE * action).tolist())
-            # <<< C2 NEW
+            # Integrate onto the previous setpoint rather than onto the measured position.
+            # Sim's RelativeJointPositionAction uses target = current_pos + delta, which
+            # works there because the joint reaches its target within a control step. Real
+            # servos lag and have a positional deadband, so re-basing on the measured
+            # position issues a fresh small target every step, the servo never completes a
+            # move, and the arm creeps instead of tracking. Integrating also matches what
+            # the policy saw in training, since tight sim tracking makes
+            # current_pos + delta ~= previous_target + delta.
+            setpoint = setpoint + delta
+            # anti-windup: never let the command lead the actual joint by more than this
+            setpoint = np.clip(setpoint, pos - MAX_LEAD_RAD, pos + MAX_LEAD_RAD)
+            targets = bus.write_targets_rad(setpoint.tolist())
+            setpoint = np.array(targets, dtype=np.float32)  # adopt any joint-limit clamping
             last_action = action.astype(np.float32)
 
             # thermal guard once a second. Costs 6 extra serial reads so it may show up
