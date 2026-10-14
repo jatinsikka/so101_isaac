@@ -45,10 +45,21 @@ FOLLOWER_SPEED = 2000      # ticks/s = 3.1 rad/s (arm.py's 600 = 0.92 rad/s lags
 TORQUE_LIMIT = 48            # STS3215 RAM register: cap on output torque, 0..1000 (0.1 % units)
 LEADER_TORQUE_LIMIT = 150    # 15 % of max: you can always overpower it
 LEADER_P_GAIN = 8            # soft spring (arm.py uses 32 for the follower)
-DEADBAND_RAD = 0.05          # gaps smaller than this are just follower lag, not contact
+# DEADBAND_RAD = 0.05          # gaps smaller than this are just follower lag, not contact
+DEADBAND_RAD = 0.08          # [CLAUDE 2026-10-14] resting gravity sag measured up to ~0.075
+STOPPED_RAD = 0.005          # [CLAUDE 2026-10-14] follower moved less than this in one step = stuck
 
 
-def haptic_target(q_leader, q_follower):
+# >>> [CLAUDE 2026-10-14] contact = follower is stuck AND far from the leader.
+# Lagging joints are still moving, so they don't count; that's what stops drag on fast moves.
+def contact_mask(q_leader, q_follower, q_follower_prev):
+    stopped = np.abs(q_follower - q_follower_prev) < STOPPED_RAD
+    return stopped & (np.abs(q_follower - q_leader) > DEADBAND_RAD)
+# <<< [CLAUDE 2026-10-14]
+
+
+# def haptic_target(q_leader, q_follower):
+def haptic_target(q_leader, q_follower, contact):  # [CLAUDE 2026-10-14] contact from contact_mask()
     """Where the leader servos should aim, rad, shape (6,).
 
     Returning q_leader          -> zero force (no haptics).
@@ -71,7 +82,8 @@ def haptic_target(q_leader, q_follower):
     # >>> [CLAUDE 2026-10-14] your logic, made per-joint and pointed toward the follower
     gap = q_follower - q_leader                                # leader -> follower, per joint
     push = np.sign(gap) * (np.abs(gap) - DEADBAND_RAD)         # grows from 0 at the deadband edge
-    return np.where(np.abs(gap) < DEADBAND_RAD, q_leader, q_leader + push)
+    # return np.where(np.abs(gap) < DEADBAND_RAD, q_leader, q_leader + push)
+    return np.where(contact, q_leader + push, q_leader)  # [CLAUDE 2026-10-14]
     # <<< [CLAUDE 2026-10-14]
 
 
@@ -95,21 +107,36 @@ def run(leader, follower, haptic):
     # <<< [CLAUDE 2026-10-14]
     if haptic:
         for i in range(1, 7):
-            leader._write(i, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT)
+            # leader._write(i, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT)
+            leader._write(i, TORQUE_LIMIT, 2, 0)  # [CLAUDE 2026-10-14] no force until a joint is in contact
         leader.torque_on()                       # holds where it is (sets P=32 ...)
         for i in range(1, 7):
             leader._write(i, P_COEFFICIENT, 1, LEADER_P_GAIN)  # ... so soften it right after
     print("running -- Ctrl+C to stop")
 
     period, step = 1.0 / HZ, 0
+    # >>> [CLAUDE 2026-10-14]
+    q_f_prev = follower.read_joints()
+    force_on = np.zeros(6, dtype=bool)  # which leader joints currently have their torque limit raised
+    # <<< [CLAUDE 2026-10-14]
     while True:
         t0 = time.perf_counter()
         q_l, q_f = leader.read_joints(), follower.read_joints()
 
         # follower chases the leader, rate-limited
         follower.send_targets(q_f + np.clip(q_l - q_f, -MAX_STEP_RAD, MAX_STEP_RAD))
+        # if haptic:
+        #     leader.send_targets(haptic_target(q_l, q_f))
+        # >>> [CLAUDE 2026-10-14]
         if haptic:
-            leader.send_targets(haptic_target(q_l, q_f))
+            contact = contact_mask(q_l, q_f, q_f_prev)
+            leader.send_targets(haptic_target(q_l, q_f, contact))  # target first, so raising force can't jerk
+            # Torque limit 0 = truly free (a stale target would otherwise drag); only write on change.
+            for j in np.flatnonzero(contact != force_on):
+                leader._write(j + 1, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT if contact[j] else 0)
+            force_on = contact
+        q_f_prev = q_f
+        # <<< [CLAUDE 2026-10-14]
 
         step += 1
         if step % HZ == 0 and follower.too_hot():
@@ -132,6 +159,8 @@ if __name__ == "__main__":
     finally:
         if args.haptic:
             leader.torque_off()  # leader goes limp; the follower keeps holding its last goal
+            for i in range(1, 7):
+                leader._write(i, TORQUE_LIMIT, 2, 1000)  # [CLAUDE 2026-10-14] don't leave it at 0 (RAM, lasts till power-off)
         print("\nstopped. follower is still holding -- `python ../sim2real/arm.py --release` (support it) to drop it.")
         leader.close()
         follower.close()
