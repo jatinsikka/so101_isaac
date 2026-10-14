@@ -92,6 +92,7 @@ def run(leader, follower, haptic):
     print("running -- Ctrl+C to stop")
 
     period, step = 1.0 / HZ, 0
+    t_window = time.perf_counter()  # [CLAUDE 2026-10-14] for the loop-rate print
     while True:
         t0 = time.perf_counter()
         q_l, q_f = leader.read_joints(), follower.read_joints()
@@ -107,6 +108,12 @@ def run(leader, follower, haptic):
         # <<< [CLAUDE 2026-10-14]
 
         step += 1
+        # >>> [CLAUDE 2026-10-14] actual loop rate, once per HZ steps (remove once tuned)
+        if step % HZ == 0:
+            now = time.perf_counter()
+            print(f"loop: {HZ / (now - t_window):.1f} Hz (target {HZ})")
+            t_window = now
+        # <<< [CLAUDE 2026-10-14]
         if step % HZ == 0 and follower.too_hot():
             raise RuntimeError("follower servo too hot -- stopping")
         time.sleep(max(0.0, period - (time.perf_counter() - t0)))
