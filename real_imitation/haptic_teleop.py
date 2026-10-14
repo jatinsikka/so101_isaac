@@ -24,13 +24,22 @@ import numpy as np
 
 # from arm import JOINTS, P_COEFFICIENT, Arm, print_joints
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "sim2real"))  # [CLAUDE 2026-10-14] arm.py lives there
-from arm import JOINTS, P_COEFFICIENT, Arm  # noqa: E402
+# from arm import JOINTS, P_COEFFICIENT, Arm  # noqa: E402
+from arm import GOAL_SPEED, JOINTS, P_COEFFICIENT, Arm  # noqa: E402  [CLAUDE 2026-10-14]
 
 # LEADER_PORT = "/dev/tty.usbmodem5A7C1192341"  # ~5 V arm you move by hand (see real_imitation/config.py)
 from config import LEADER_PORT  # noqa: E402  [CLAUDE 2026-10-14] one place for the port
 
 HZ = 50
 MAX_STEP_RAD = 0.10  # follower: biggest per-step change in its goal, so a leader jerk can't throw it
+
+# >>> [CLAUDE 2026-10-14] follower feel for teleop only (arm.py keeps P=32, speed 600 for policy runs;
+# arm.torque_on() rewrites those, so running a policy afterwards is unaffected)
+D_COEFFICIENT = 22         # STS3215 register: D gain of the servo's position loop (damping)
+FOLLOWER_P_GAIN = 16       # LeRobot's teleop value; 32 overshoots and oscillates on fast hand motion
+FOLLOWER_D_GAIN = 32       # LeRobot's teleop value; damps the overshoot
+FOLLOWER_SPEED = 2000      # ticks/s = 3.1 rad/s (arm.py's 600 = 0.92 rad/s lags a moving hand)
+# <<< [CLAUDE 2026-10-14]
 
 # Leader feel. Start weak; raise only once it behaves.
 TORQUE_LIMIT = 48            # STS3215 RAM register: cap on output torque, 0..1000 (0.1 % units)
@@ -66,6 +75,12 @@ def check(leader, follower):
 
 def run(leader, follower, haptic):
     follower.torque_on()
+    # >>> [CLAUDE 2026-10-14] override arm.py's policy-run settings with the teleop ones above
+    for i in range(1, 7):
+        follower._write(i, P_COEFFICIENT, 1, FOLLOWER_P_GAIN)
+        follower._write(i, D_COEFFICIENT, 1, FOLLOWER_D_GAIN)
+        follower._write(i, GOAL_SPEED, 2, FOLLOWER_SPEED)
+    # <<< [CLAUDE 2026-10-14]
     if haptic:
         for i in range(1, 7):
             leader._write(i, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT)
