@@ -120,6 +120,8 @@ def run(leader, follower, haptic):
     # >>> [CLAUDE 2026-10-14]
     q_f_prev = follower.read_joints()
     force_on = np.zeros(6, dtype=bool)  # which leader joints currently have their torque limit raised
+    on_steps = np.zeros(6, dtype=int)   # [CLAUDE 2026-10-14] debug: steps each joint had force, per second
+    flips = np.zeros(6, dtype=int)      # [CLAUDE 2026-10-14] debug: torque on/off switches, per second
     # <<< [CLAUDE 2026-10-14]
     while True:
         t0 = time.perf_counter()
@@ -140,7 +142,15 @@ def run(leader, follower, haptic):
             # Only write on change, to keep the loop fast.
             for j in np.flatnonzero(contact != force_on):
                 leader._write(j + 1, TORQUE_ENABLE, 1, int(contact[j]))
+            flips += contact != force_on  # [CLAUDE 2026-10-14] debug
+            on_steps += contact           # [CLAUDE 2026-10-14] debug
             force_on = contact
+            # >>> [CLAUDE 2026-10-14] debug, once a second: how much each joint was pushing (remove once tuned)
+            if (step + 1) % HZ == 0:
+                print(f"force on (steps/{HZ}): {on_steps}   switches: {flips}   gap: {np.round(np.abs(q_f - q_l), 2)}")
+                on_steps[:] = 0
+                flips[:] = 0
+            # <<< [CLAUDE 2026-10-14]
         q_f_prev = q_f
         # <<< [CLAUDE 2026-10-14]
 
