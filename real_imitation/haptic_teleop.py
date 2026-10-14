@@ -86,7 +86,9 @@ def run(leader, follower, haptic):
             leader._write(i, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT)
         leader.torque_on()                       # holds where it is (sets P=32 ...)
         for i in range(1, 7):
-            leader._write(i, P_COEFFICIENT, 1, LEADER_P_GAIN)  # ... so soften it right after
+            leader._write(i, P_COEFFICIENT, 1, LEADER_P_GAIN) 
+        if step % 25 == 0:
+            print(np.round(np.abs(q_l - q_f), 3))  # free-space gap per joint, rad # ... so soften it right after
     print("running -- Ctrl+C to stop")
 
     period, step = 1.0 / HZ, 0
@@ -98,6 +100,11 @@ def run(leader, follower, haptic):
         follower.send_targets(q_f + np.clip(q_l - q_f, -MAX_STEP_RAD, MAX_STEP_RAD))
         if haptic:
             leader.send_targets(haptic_target(q_l, q_f))
+
+        # >>> [CLAUDE 2026-10-14] free-space gap per joint, to size DEADBAND_RAD (remove once tuned)
+        if step % 25 == 0:  # twice a second at 50 Hz
+            print("gap (rad):", np.round(np.abs(q_l - q_f), 3))
+        # <<< [CLAUDE 2026-10-14]
 
         step += 1
         if step % HZ == 0 and follower.too_hot():
