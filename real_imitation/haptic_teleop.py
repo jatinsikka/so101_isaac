@@ -105,6 +105,6 @@ if __name__ == "__main__":
     finally:
         if args.haptic:
             leader.torque_off()  # leader goes limp; the follower keeps holding its last goal
-        print("\nstopped. follower is still holding -- `python arm.py --release` (support it) to drop it.")
+        print("\nstopped. follower is still holding -- `python ../sim2real/arm.py --release` (support it) to drop it.")
         leader.close()
         follower.close()
