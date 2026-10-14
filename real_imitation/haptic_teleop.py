@@ -8,7 +8,7 @@ is tiny; when the follower hits something and stops, the gap grows and you feel 
 The gripper is the best demo: squeeze an object and the leader trigger resists.
 
 Replaces lerobot-teleoperate (both want the same serial ports: never run them together).
-Runs in the base env, like the rest of sim2real/ (needs only scservo_sdk).
+Runs in the base env, not the lerobot env: it needs only scservo_sdk, via ../sim2real/arm.py.
 
     python haptic_teleop.py --check    # 1. read-only: both arms side by side, nothing moves
     python haptic_teleop.py            # 2. follower copies leader, leader stays limp
@@ -16,13 +16,18 @@ Runs in the base env, like the rest of sim2real/ (needs only scservo_sdk).
 """
 
 import argparse
+import sys
 import time
+from pathlib import Path
 
 import numpy as np
 
-from arm import JOINTS, P_COEFFICIENT, Arm, print_joints
+# from arm import JOINTS, P_COEFFICIENT, Arm, print_joints
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "sim2real"))  # [CLAUDE 2026-10-14] arm.py lives there
+from arm import JOINTS, P_COEFFICIENT, Arm  # noqa: E402
 
-LEADER_PORT = "/dev/tty.usbmodem5A7C1192341"  # ~5 V arm you move by hand (see real_imitation/config.py)
+# LEADER_PORT = "/dev/tty.usbmodem5A7C1192341"  # ~5 V arm you move by hand (see real_imitation/config.py)
+from config import LEADER_PORT  # noqa: E402  [CLAUDE 2026-10-14] one place for the port
 
 HZ = 50
 MAX_STEP_RAD = 0.10  # follower: biggest per-step change in its goal, so a leader jerk can't throw it
