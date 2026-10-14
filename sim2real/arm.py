@@ -65,11 +65,14 @@ class Arm:
     dry run without the arm moving.
     """
 
-    def __init__(self, can_move=False):
+    # def __init__(self, can_move=False):
+    def __init__(self, can_move=False, port=PORT):  # [CLAUDE 2026-10-14] port arg so the leader arm can use this class too
         self.can_move = can_move
-        self.port = PortHandler(PORT)
+        # self.port = PortHandler(PORT)
+        self.port = PortHandler(port)  # [CLAUDE 2026-10-14]
         if not (self.port.openPort() and self.port.setBaudRate(BAUD)):
-            raise RuntimeError(f"cannot open {PORT} -- is the follower plugged in?")
+            # raise RuntimeError(f"cannot open {PORT} -- is the follower plugged in?")
+            raise RuntimeError(f"cannot open {port} -- is that arm plugged in?")  # [CLAUDE 2026-10-14]
         self.bus = PacketHandler(0)
 
     # ---- low level: one register on one servo, retried once (the bus drops a packet now and then)
