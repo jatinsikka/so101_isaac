@@ -26,7 +26,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "sim2real"))  # [CLAUDE 2026-10-14] arm.py lives there
 # from arm import JOINTS, P_COEFFICIENT, Arm  # noqa: E402
 # from arm import GOAL_SPEED, JOINTS, P_COEFFICIENT, Arm  # noqa: E402  [CLAUDE 2026-10-14]
-from arm import GOAL_SPEED, JOINTS, P_COEFFICIENT, TORQUE_ENABLE, Arm  # noqa: E402  [CLAUDE 2026-10-14]
+# from arm import GOAL_SPEED, JOINTS, P_COEFFICIENT, TORQUE_ENABLE, Arm  # noqa: E402  [CLAUDE 2026-10-14]
+from arm import (GOAL_POSITION, GOAL_SPEED, JOINTS, LIMITS, P_COEFFICIENT,  # noqa: E402  [CLAUDE 2026-10-14]
+                 TORQUE_ENABLE, Arm, to_ticks)
 
 # LEADER_PORT = "/dev/tty.usbmodem5A7C1192341"  # ~5 V arm you move by hand (see real_imitation/config.py)
 from config import LEADER_PORT  # noqa: E402  [CLAUDE 2026-10-14] one place for the port
@@ -134,7 +136,13 @@ def run(leader, follower, haptic):
         # >>> [CLAUDE 2026-10-14]
         if haptic:
             contact = contact_mask(q_l, q_f, q_f_prev)
-            leader.send_targets(haptic_target(q_l, q_f, contact))  # target first, so raising force can't jerk
+            # leader.send_targets(haptic_target(q_l, q_f, contact))  # target first, so raising force can't jerk
+            # >>> [CLAUDE 2026-10-14] writing a goal position turns that servo's torque ON (verified on the
+            # leader), so writing all 6 kept every joint powered = heavy. Write goals for contact joints only.
+            target = np.clip(haptic_target(q_l, q_f, contact), LIMITS[:, 0], LIMITS[:, 1])
+            for j in np.flatnonzero(contact):  # goal first, so turning torque on can't jerk
+                leader._write(j + 1, GOAL_POSITION, 2, to_ticks(target[j]))
+            # <<< [CLAUDE 2026-10-14]
             # # Torque limit 0 = truly free (a stale target would otherwise drag); only write on change.
             # for j in np.flatnonzero(contact != force_on):
             #     leader._write(j + 1, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT if contact[j] else 0)
