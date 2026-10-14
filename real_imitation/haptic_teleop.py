@@ -60,7 +60,19 @@ def haptic_target(q_leader, q_follower):
       teleoperating in free space first: the deadband must be bigger than normal lag.
       Stretch: use follower.loads() (signed, -1000..1000) instead of the position gap.
     """
-    return q_leader  # placeholder: no force
+    # q_l, q_f = leader.read_joints(), follower.read_joints()
+    #
+    # if np.abs(q_l - q_f) < DEADBAND_RAD:
+    #     return q_l
+    # else:
+    #     return q_leader + np.sign(q_l - q_f) * (np.abs(q_l - q_f) - DEADBAND_RAD)
+    # return q_leader  # placeholder: no force
+
+    # >>> [CLAUDE 2026-10-14] your logic, made per-joint and pointed toward the follower
+    gap = q_follower - q_leader                                # leader -> follower, per joint
+    push = np.sign(gap) * (np.abs(gap) - DEADBAND_RAD)         # grows from 0 at the deadband edge
+    return np.where(np.abs(gap) < DEADBAND_RAD, q_leader, q_leader + push)
+    # <<< [CLAUDE 2026-10-14]
 
 
 def check(leader, follower):
@@ -86,13 +98,10 @@ def run(leader, follower, haptic):
             leader._write(i, TORQUE_LIMIT, 2, LEADER_TORQUE_LIMIT)
         leader.torque_on()                       # holds where it is (sets P=32 ...)
         for i in range(1, 7):
-            leader._write(i, P_COEFFICIENT, 1, LEADER_P_GAIN) 
-        if step % 25 == 0:
-            print(np.round(np.abs(q_l - q_f), 3))  # free-space gap per joint, rad # ... so soften it right after
+            leader._write(i, P_COEFFICIENT, 1, LEADER_P_GAIN)  # ... so soften it right after
     print("running -- Ctrl+C to stop")
 
     period, step = 1.0 / HZ, 0
-    t_window = time.perf_counter()  # [CLAUDE 2026-10-14] for the loop-rate print
     while True:
         t0 = time.perf_counter()
         q_l, q_f = leader.read_joints(), follower.read_joints()
@@ -102,18 +111,7 @@ def run(leader, follower, haptic):
         if haptic:
             leader.send_targets(haptic_target(q_l, q_f))
 
-        # >>> [CLAUDE 2026-10-14] free-space gap per joint, to size DEADBAND_RAD (remove once tuned)
-        if step % 25 == 0:  # twice a second at 50 Hz
-            print("gap (rad):", np.round(np.abs(q_l - q_f), 3))
-        # <<< [CLAUDE 2026-10-14]
-
         step += 1
-        # >>> [CLAUDE 2026-10-14] actual loop rate, once per HZ steps (remove once tuned)
-        if step % HZ == 0:
-            now = time.perf_counter()
-            print(f"loop: {HZ / (now - t_window):.1f} Hz (target {HZ})")
-            t_window = now
-        # <<< [CLAUDE 2026-10-14]
         if step % HZ == 0 and follower.too_hot():
             raise RuntimeError("follower servo too hot -- stopping")
         time.sleep(max(0.0, period - (time.perf_counter() - t0)))
